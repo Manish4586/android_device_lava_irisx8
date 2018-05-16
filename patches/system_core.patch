@@ -1,0 +1,228 @@
+From 77fb3af2bfa308a4720100c5aa51dd6aafe7a3bf Mon Sep 17 00:00:00 2001
+From: fire855 <thefire855@gmail.com>
+Date: Wed, 27 May 2015 21:44:37 +0200
+Subject: [PATCH] Add depreciated symbols needed by old MALI blobs (by
+ kashifmin)
+
+---
+ libutils/Android.mk        |  4 ++++
+ libutils/MediatekHacks.cpp | 18 ++++++++++++++++++
+ 2 files changed, 22 insertions(+)
+ create mode 100644 libutils/MediatekHacks.cpp
+
+diff --git a/libutils/Android.mk b/libutils/Android.mk
+index b1dc1f81d8..b871b1e82c 100644
+--- a/libutils/Android.mk
++++ b/libutils/Android.mk
+@@ -90,6 +90,10 @@ LOCAL_CFLAGS += -DALIGN_DOUBLE
+ endif
+ LOCAL_CFLAGS += -Werror
+ 
++ifeq ($(TARGET_BOARD_PLATFORM),mt6592)
++LOCAL_SRC_FILES += MediatekHacks.cpp
++endif
++
+ LOCAL_C_INCLUDES += \
+ 		bionic/libc \
+ 		external/zlib
+diff --git a/libutils/MediatekHacks.cpp b/libutils/MediatekHacks.cpp
+new file mode 100644
+index 0000000000..0404a32cb7
+--- /dev/null
++++ b/libutils/MediatekHacks.cpp
+@@ -0,0 +1,18 @@
++extern "C" {
++ void _ZN7android11IDumpTunnel11asInterfaceERKNS_2spINS_7IBinderEEE(){}
++ void _ZN7android9CallStackC1EPKci(char const*, int);
++ void _ZN7android9CallStack6updateEii(int, int);
++
++ void _ZN7android9CallStackC1EPKcii(char const* logtag, int ignoreDepth, int maxDepth){
++  maxDepth = maxDepth-1;
++  maxDepth = maxDepth+1;
++  _ZN7android9CallStackC1EPKci(logtag, ignoreDepth);
++  
++ }
++
++ void _ZN7android9CallStack6updateEiii(int ignoreDepth, int maxDepth, int tid){
++  maxDepth = maxDepth-1;
++  maxDepth = maxDepth+1; 
++  _ZN7android9CallStack6updateEii(ignoreDepth, tid);
++ }
++}
+
+From 14f085a469222dcc2873a163b6b25e3d5df7d565 Mon Sep 17 00:00:00 2001
+From: fire855 <thefire855@gmail.com>
+Date: Fri, 12 Jun 2015 21:52:22 +0200
+Subject: [PATCH] Fix MTK audio lib log spamming
+
+Change-Id: I15209dd0f3ef2f116bc60e7ddc2bf46065551e83
+---
+ liblog/logd_write.c | 20 ++++++++++++++++++++
+ 1 file changed, 20 insertions(+)
+
+diff --git a/liblog/logd_write.c b/liblog/logd_write.c
+index ee10d58044..13a9fcc15d 100644
+--- a/liblog/logd_write.c
++++ b/liblog/logd_write.c
+@@ -474,6 +474,26 @@ int __android_log_write(int prio, const char *tag, const char *msg)
+     if (!tag)
+         tag = "";
+ 
++    // Prevent MTK audio libs from spamming in the log
++    if (!strcmp(tag, "AudioMTKFilterManager") ||
++        !strcmp(tag, "AudioMTKFilter") ||
++        !strcmp(tag, "AudioMTKStreamOut") ||
++        !strcmp(tag, "AudioVPWStreamIn") ||
++        !strcmp(tag, "AudioDigitalControl") ||
++        !strcmp(tag, "AudioLoopbackController") ||
++        !strcmp(tag, "AudioMTKVolumeController") ||
++        !strcmp(tag, "AudioDigitalControl") ||
++        !strcmp(tag, "AudioAnalogControl") ||
++        !strcmp(tag, "AudioAfeReg") ||
++        !strcmp(tag, "AudioAnalogReg") ||
++        !strcmp(tag, "AudioPlatformDevice") ||
++        !strcmp(tag, "AudioMachineDevice") ||
++        !strcmp(tag, "MtkAudioLoud") ||
++        !strcmp(tag, "LoopbackManager") ||
++        !strcmp(tag, "AudioInterConnection")) {
++            return 0;
++    }
++
+     /* XXX: This needs to go! */
+     if (!strcmp(tag, "HTC_RIL") ||
+         !strncmp(tag, "RIL", 3) || /* Any log tag with "RIL" as the prefix */
+		 
+From f19da6845218a7c8e94c01630da53fc5fe4f8f3b Mon Sep 17 00:00:00 2001
+From: fire855 <thefire855@gmail.com>
+Date: Sat, 20 Jun 2015 00:13:14 +0200
+Subject: [PATCH] remove ril service and update permissions
+
+Change-Id: If0e907c72a33333f6aac941082b81156fa9e61f3
+---
+ rootdir/init.rc | 11 ++---------
+ 1 file changed, 2 insertions(+), 9 deletions(-)
+
+diff --git a/rootdir/init.rc b/rootdir/init.rc
+index 029d7deba7..79bee481ef 100644
+--- a/rootdir/init.rc
++++ b/rootdir/init.rc
+@@ -552,16 +552,9 @@ service debuggerd /system/bin/debuggerd
+ service debuggerd64 /system/bin/debuggerd64
+     class main
+ 
+-service ril-daemon /system/bin/rild
+-    class main
+-    socket rild stream 660 root radio
+-    socket rild-debug stream 660 radio system
+-    user root
+-    group radio cache inet misc audio sdcard_rw qcom_diag log
+-
+ service surfaceflinger /system/bin/surfaceflinger
+     class core
+-    user system
++    user root
+     group graphics drmrpc
+     onrestart restart zygote
+ 
+@@ -572,7 +565,7 @@ service drm /system/bin/drmserver
+ 
+ service media /system/bin/mediaserver
+     class main
+-    user media
++    user root
+     group audio camera inet net_bt net_bt_admin net_bw_acct drmrpc mediadrm qcom_diag
+     ioprio rt 4
+ 
+From 2b28aebc71a20b8a97799dfe3ca7cfe4851d2afc Mon Sep 17 00:00:00 2001
+From: fire855 <thefire855@gmail.com>
+Date: Thu, 10 Sep 2015 13:43:55 +0200
+Subject: [PATCH] Fix led permissions (by hyperion70)
+
+---
+ rootdir/init.rc | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/rootdir/init.rc b/rootdir/init.rc
+index 02adc8924f..3442d99cb8 100644
+--- a/rootdir/init.rc
++++ b/rootdir/init.rc
+@@ -408,6 +408,9 @@ on boot
+     chown system system /sys/class/leds/red/device/grpfreq
+     chown system system /sys/class/leds/red/device/grppwm
+     chown system system /sys/class/leds/red/device/blink
++    chown system system /sys/class/leds/red/trigger
++    chown system system /sys/class/leds/green/trigger
++    chown system system /sys/class/leds/blue/trigger
+     chown system system /sys/class/timed_output/vibrator/enable
+     chown system system /sys/module/sco/parameters/disable_esco
+     chown system system /sys/kernel/ipv4/tcp_wmem_min
+	 
+From 6b6af364c8437f97a3f97d9763d8fe7359706a21 Mon Sep 17 00:00:00 2001
+From: fire855 <thefire855@gmail.com>
+Date: Wed, 11 Nov 2015 19:39:31 +0100
+Subject: [PATCH] Add missing function for thermal
+
+---
+ include/netutils/ifc.h  | 2 ++
+ libnetutils/ifc_utils.c | 5 +++++
+ 2 files changed, 7 insertions(+)
+
+diff --git a/include/netutils/ifc.h b/include/netutils/ifc.h
+index 3b272343d6..b7d681a819 100644
+--- a/include/netutils/ifc.h
++++ b/include/netutils/ifc.h
+@@ -61,6 +61,8 @@ extern int ifc_configure(const char *ifname, in_addr_t address,
+ 
+ extern in_addr_t prefixLengthToIpv4Netmask(int prefix_length);
+ 
++extern int ifc_set_throttle(const char *ifname, int rxKbps, int txKbps);
++
+ __END_DECLS
+ 
+ #endif /* _NETUTILS_IFC_H_ */
+diff --git a/libnetutils/ifc_utils.c b/libnetutils/ifc_utils.c
+index cb3722d847..e6e9bcdcea 100644
+--- a/libnetutils/ifc_utils.c
++++ b/libnetutils/ifc_utils.c
+@@ -711,3 +711,8 @@ ifc_configure(const char *ifname,
+ 
+     return 0;
+ }
++
++int ifc_set_throttle(const char *ifname, int rxKbps, int txKbps) {
++    ALOGD("ifc_set_throttle: ifname=%s, rxKbps=%d, txKbps=%d", ifname, rxKbps, txKbps);
++    return 0;
++}
+
+From 8efc89c03c4b6cde82626212f359ce23b87c0a82 Mon Sep 17 00:00:00 2001
+From: fire855 <thefire855@gmail.com>
+Date: Fri, 29 Jan 2016 17:32:31 +0100
+Subject: [PATCH] Add mtk audio values
+
+---
+ include/system/audio.h | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/include/system/audio.h b/include/system/audio.h
+index 093da96e18..e99a813cc9 100644
+--- a/include/system/audio.h
++++ b/include/system/audio.h
+@@ -154,6 +154,15 @@ typedef enum {
+     AUDIO_SOURCE_FM_RX               = 10,
+     AUDIO_SOURCE_FM_RX_A2DP          = 11,
+ #endif
++#ifdef MTK_HARDWARE
++    AUDIO_SOURCE_VOICE_UNLOCK = 80,
++    AUDIO_SOURCE_CUSTOMIZATION1 = 81,
++    AUDIO_SOURCE_CUSTOMIZATION2 = 82,
++    AUDIO_SOURCE_CUSTOMIZATION3 = 83,
++    AUDIO_SOURCE_ANC = 97,
++    AUDIO_SOURCE_MATV = 98,
++    AUDIO_SOURCE_FM = 99,
++#endif
+     AUDIO_SOURCE_CNT,
+     AUDIO_SOURCE_MAX                 = AUDIO_SOURCE_CNT - 1,
+     AUDIO_SOURCE_FM_TUNER            = 1998,
+
+	 
+ 
