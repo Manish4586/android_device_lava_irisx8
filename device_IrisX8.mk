@@ -23,6 +23,10 @@ PRODUCT_PACKAGES += \
     libmtk_symbols \
     libxlog
 
+# Lights
+PRODUCT_PACKAGES += \
+    lights.mt6592
+
 # Audio
 PRODUCT_PACKAGES += \
     audio.a2dp.default \
